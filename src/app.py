@@ -12,7 +12,6 @@ import torchsummary
 from torchsummary import summary
 from pytorch_lightning.loggers import CSVLogger
 import torch
-from response import Net
 from flask import Flask, request, render_template, redirect, url_for
 import io
 import base64
@@ -20,30 +19,35 @@ import os
 from werkzeug.utils import secure_filename
 import openai
 from sklearn.feature_extraction.text import CountVectorizer
-import MeCab
 import pickle
 from gtts import gTTS
 import uuid
 import requests
+from transformers import AlbertTokenizer, AlbertForSequenceClassification
 
-#前処理を合わせる。今回はMeCabを使用
-mecab = MeCab.Tagger('-Owakati')
-vectorizer = CountVectorizer(min_df=5)  #前処理を合わせる。学習モデルを作った時と同じ閾値。
-with open('./src/2nd_vectorizer.pkl', 'rb') as f:
-    vectorizer = pickle.load(f)
+# モデルとトークナイザの読み込み
+model_path = './src/model_files'
+tokenizer_path = './src/tokenizer_files'
+albert_model = AlbertForSequenceClassification.from_pretrained(model_path).cpu().eval()
+albert_tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
-#学習済みモデルを元に推論する
-def predict(text): #元テキストではimgとなっていた部分
-    net = Net().cpu().eval()
-    net.load_state_dict(torch.load('./src/2nd_model.pt', map_location=torch.device('cpu')))
-    #学習時と同じデータの前処理を実施
-    text = mecab.parse(text).strip()
-    bow_text = vectorizer.transform([text]).toarray()
-    text_tensor = torch.tensor(bow_text, dtype=torch.float32)
+def predict(text):
+    # テキストのエンコード
+    input_encodings = albert_tokenizer(
+        text,
+        return_tensors='pt',
+        max_length=70, 
+        padding='max_length',
+        truncation=True
+    )
 
     # 推論
-    y = torch.argmax(net(text_tensor), dim=1).cpu().detach().numpy()
-    return y
+    with torch.no_grad():
+        outputs = albert_model(**input_encodings)
+        logits = outputs.logits
+        predicted_label = torch.argmax(logits, dim=1).cpu().numpy()[0]
+        
+    return predicted_label
 
 #推論したラベルからその会話カテゴリの名前を返す
 
