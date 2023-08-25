@@ -1,0 +1,15 @@
+# Pythonイメージをベースとして使用
+FROM python:3.9
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# 必要なパッケージをインストール
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# すべてのファイルとディレクトリをコンテナにコピー
+COPY . .
+
+# Flaskアプリを起動するコマンド
+CMD ["python", "src/app.py"]
