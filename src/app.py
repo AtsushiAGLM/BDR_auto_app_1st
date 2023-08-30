@@ -25,6 +25,7 @@ import uuid
 import requests
 from transformers import AlbertTokenizer, AlbertForSequenceClassification
 
+
 # モデルとトークナイザの読み込み
 model_path = './src/model_files'
 tokenizer_path = './src/tokenizer_files'
