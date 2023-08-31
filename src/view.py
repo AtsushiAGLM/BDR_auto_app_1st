@@ -27,8 +27,12 @@ from transformers import AlbertTokenizer, AlbertForSequenceClassification
 
 
 # モデルとトークナイザの読み込み
-model_path = './src/model_files'
-tokenizer_path = './src/tokenizer_files'
+model_path = './model_files'
+tokenizer_path = './tokenizer_files'
+#元コード
+# model_path = './src/model_files'
+#tokenizer_path = './src/tokenizer_files'
+
 albert_model = AlbertForSequenceClassification.from_pretrained(model_path).cpu().eval()
 albert_tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
