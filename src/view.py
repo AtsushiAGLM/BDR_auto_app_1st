@@ -149,9 +149,20 @@ def generatedResponse(response):
 
 model_path = './src/model_files'
 tokenizer_path = './src/tokenizer_files'
+quantized_model_path = "quantized_model.pth" 
 
 albert_model = AlbertForSequenceClassification.from_pretrained(model_path).cpu().eval()
 albert_tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
+
+albert_model = torch.quantization.quantize_dynamic(    
+    albert_model,                                     
+    {torch.nn.Linear},                                
+    dtype=torch.qint8                                 
+)       
+# 保存したモデルの重みを読み込む
+albert_model.load_state_dict(torch.load(quantized_model_path, map_location=torch.device('cpu')))
+
+albert_model.eval()
 
 def predict(text):
     # テキストのエンコード
