@@ -24,37 +24,16 @@ from gtts import gTTS
 import uuid
 import requests
 from transformers import AlbertTokenizer, AlbertForSequenceClassification
+import logging
 
+app = Flask(__name__, static_url_path='/static', static_folder='../static')
+app.logger.setLevel(logging.DEBUG)
 
-# モデルとトークナイザの読み込み
-model_path = './model_files'
-tokenizer_path = './tokenizer_files'
-#元コード
-# model_path = './src/model_files'
-#tokenizer_path = './src/tokenizer_files'
+ALLOWED_EXTENSIONS = {'mp3', 'm4a'}
 
-albert_model = AlbertForSequenceClassification.from_pretrained(model_path).cpu().eval()
-albert_tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
-
-def predict(text):
-    # テキストのエンコード
-    input_encodings = albert_tokenizer(
-        text,
-        return_tensors='pt',
-        max_length=70, 
-        padding='max_length',
-        truncation=True
-    )
-
-    # 推論
-    with torch.no_grad():
-        outputs = albert_model(**input_encodings)
-        logits = outputs.logits
-        predicted_label = torch.argmax(logits, dim=1).cpu().numpy()[0]
-        
-    return predicted_label
-
-#推論したラベルからその会話カテゴリの名前を返す
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def getCategory(response):
     if response == 0:
@@ -111,7 +90,7 @@ def getCategory(response):
         return '25_担当名確認'
     else:
         return 'Error'
-
+    
 def generatedResponse(response):
     if response == 0:
         return 'お世話になっております。キカガクのフナクラと申します。担当のXX様はいらっしゃりますでしょうか'#ここは文字が自然と入るようにしたい
@@ -168,15 +147,29 @@ def generatedResponse(response):
     else:
         return 'Error'    
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+model_path = './src/model_files'
+tokenizer_path = './src/tokenizer_files'
 
-app = Flask(__name__, static_folder='/Users/miyaoatsushi/Desktop/kikagaku_final_app/kikagaku_final_app_ver1/static')
+albert_model = AlbertForSequenceClassification.from_pretrained(model_path).cpu().eval()
+albert_tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
 
-UPLOAD_FOLDER = '/Users/miyaoatsushi/Desktop/kikagaku_final_app/kikagaku_final_app_ver1/uploads'
-ALLOWED_EXTENSIONS = {'mp3', 'm4a'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+def predict(text):
+    # テキストのエンコード
+    input_encodings = albert_tokenizer(
+        text,
+        return_tensors='pt',
+        max_length=70, 
+        padding='max_length',
+        truncation=True
+    )
+
+    # 推論
+    with torch.no_grad():
+        outputs = albert_model(**input_encodings)
+        logits = outputs.logits
+        predicted_label = torch.argmax(logits, dim=1).cpu().numpy()[0]
+        
+    return predicted_label
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -191,30 +184,37 @@ def upload_file():
             return redirect(request.url)
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file_path = os.path.join('uploads', filename)
             file.save(file_path)
-            
             #wisper AIに食べさせられるように音声ファイルをrb形でopenしておく
             with open(file_path, "rb") as f:
                 #wisper AIに音源データを文字起こしさせる
                 transcription = openai.Audio.transcribe("whisper-1", f)
                 txt = transcription['text']
             #ここで取得した音声データの文字データtxtをベースに推論を実施
+
+            from datetime import datetime
+            app.logger.debug("現在の日時1s: %s", datetime.now())
             pred = predict(txt)
+            app.logger.debug("現在の日時1e: %s", datetime.now())
             category_ = getCategory(pred)
             generatedResponse_ = generatedResponse(pred)
             # テキストを音声に変換。まずは初回はカテゴリーnameを音声として入れる
+            app.logger.debug("現在の日時2s: %s", datetime.now())
             tts = gTTS(text=generatedResponse_, lang='ja')
+            app.logger.debug("現在の日時2e: %s", datetime.now())
             #ファイル名を動的にユニークに生成→flaskの使用上、音声ファイルはstatic/audioというファイルでやらないとダメ
             file_name = str(uuid.uuid4()) + ".mp3"
             file_path = os.path.join('static/audio', file_name)
 
             # 音声をmp3ファイルとして保存
             tts.save(file_path)
-
             return render_template('result.html', audio_file_url=url_for('static', filename='audio/' + file_name), category=category_)
+            
+
     elif request.method == 'GET':
         return render_template('index.html')
 
-if __name__ == "__main__":
-    app.run(debug=False)
+if __name__ == '__main__':
+    app.debug = False
+    app.run()
