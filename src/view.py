@@ -25,6 +25,7 @@ import uuid
 import requests
 from transformers import AlbertTokenizer, AlbertForSequenceClassification
 import logging
+from datetime import datetime
 
 app = Flask(__name__, static_url_path='/static', static_folder='../static')
 app.logger.setLevel(logging.DEBUG)
@@ -165,6 +166,7 @@ albert_model.load_state_dict(torch.load(quantized_model_path, map_location=torch
 albert_model.eval()
 
 def predict(text):
+    app.logger.debug("現在の日時11: %s", datetime.now())
     # テキストのエンコード
     input_encodings = albert_tokenizer(
         text,
@@ -173,12 +175,17 @@ def predict(text):
         padding='max_length',
         truncation=True
     )
+    app.logger.debug("現在の日時12: %s", datetime.now())
 
     # 推論
     with torch.no_grad():
+        app.logger.debug("現在の日時13: %s", datetime.now())
         outputs = albert_model(**input_encodings)
+        app.logger.debug("現在の日時14: %s", datetime.now())
         logits = outputs.logits
+        app.logger.debug("現在の日時15: %s", datetime.now())
         predicted_label = torch.argmax(logits, dim=1).cpu().numpy()[0]
+        app.logger.debug("現在の日時16: %s", datetime.now())
         
     return predicted_label
 
