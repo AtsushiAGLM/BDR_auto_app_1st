@@ -27,6 +27,7 @@ from transformers import AlbertTokenizer, AlbertForSequenceClassification
 import logging
 from datetime import datetime
 
+
 app = Flask(__name__, static_url_path='/static', static_folder='../static')
 app.logger.setLevel(logging.DEBUG)
 
@@ -148,45 +149,36 @@ def generatedResponse(response):
     else:
         return 'Error'    
 
-model_path = './src/model_files'
-tokenizer_path = './src/tokenizer_files'
-quantized_model_path = "quantized_model.pth" 
 
-albert_model = AlbertForSequenceClassification.from_pretrained(model_path).cpu().eval()
-albert_tokenizer = AlbertTokenizer.from_pretrained(tokenizer_path)
-
-albert_model = torch.quantization.quantize_dynamic(    
-    albert_model,                                     
-    {torch.nn.Linear},                                
-    dtype=torch.qint8                                 
-)       
-# 保存したモデルの重みを読み込む
-albert_model.load_state_dict(torch.load(quantized_model_path, map_location=torch.device('cpu')))
-
-albert_model.eval()
+model = AlbertForSequenceClassification.from_pretrained("hf-tiny-model-private/tiny-random-AlbertForSequenceClassification")
+tokenizer = AlbertTokenizer.from_pretrained("hf-tiny-model-private/tiny-random-AlbertForSequenceClassification")
 
 def predict(text):
-    app.logger.debug("現在の日時11: %s", datetime.now())
+    from datetime import datetime
+    #app.logger.debug("現在の日時11: %s", datetime.now())
     # テキストのエンコード
-    input_encodings = albert_tokenizer(
+    input_encodings = tokenizer(
         text,
         return_tensors='pt',
         max_length=70, 
         padding='max_length',
         truncation=True
     )
-    app.logger.debug("現在の日時12: %s", datetime.now())
-
+    #app.logger.debug("現在の日時12: %s", datetime.now())
     # 推論
     with torch.no_grad():
         app.logger.debug("現在の日時13: %s", datetime.now())
-        outputs = albert_model(**input_encodings)
+        '''
+        # token_type_ids を削除
+        if 'token_type_ids' in input_encodings:
+            del input_encodings['token_type_ids']
+        '''
+        outputs = model(**input_encodings)
         app.logger.debug("現在の日時14: %s", datetime.now())
         logits = outputs.logits
-        app.logger.debug("現在の日時15: %s", datetime.now())
+        #app.logger.debug("現在の日時15: %s", datetime.now())
         predicted_label = torch.argmax(logits, dim=1).cpu().numpy()[0]
-        app.logger.debug("現在の日時16: %s", datetime.now())
-        
+        #app.logger.debug("現在の日時16: %s", datetime.now())
     return predicted_label
 
 @app.route('/', methods=['GET', 'POST'])
